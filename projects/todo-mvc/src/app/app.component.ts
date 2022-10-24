@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { TodoListComponent } from './todo-list.component';
+import { defaultStoreProvider } from '@state-adapt/angular';
 
 @Component({
   selector: 'app-root',
@@ -13,7 +14,8 @@ import { TodoListComponent } from './todo-list.component';
         <a
           href="https://github.com/rx-angular/rx-angular/blob/master/libs/state/README.md"
         >
-          @rx-angular/state</a>
+          @rx-angular/state</a
+        >
       </code>
       to manage state and
       <code>
@@ -32,5 +34,6 @@ export class AppComponent {}
   declarations: [AppComponent],
   imports: [BrowserModule, TodoListComponent],
   bootstrap: [AppComponent],
+  providers: [defaultStoreProvider],
 })
 export class AppModule {}

@@ -6,7 +6,7 @@ import {
   EventEmitter,
   Input,
   Output,
-  ViewChild
+  ViewChild,
 } from '@angular/core';
 import { RxState } from '@rx-angular/state';
 import { LetModule } from '@rx-angular/template/let';

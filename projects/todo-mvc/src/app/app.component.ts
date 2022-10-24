@@ -11,11 +11,7 @@ import { defaultStoreProvider } from '@state-adapt/angular';
     <footer>
       <strong>Angular Zoneless experiment</strong> using
       <code>
-        <a
-          href="https://github.com/rx-angular/rx-angular/blob/master/libs/state/README.md"
-        >
-          @rx-angular/state</a
-        >
+        <a href="https://state-adapt.github.io/"> StateAdapt</a>
       </code>
       to manage state and
       <code>

@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { RxActionFactory } from '@rx-angular/state/actions';
 import { ForModule } from '@rx-angular/template/for';
 import { LetModule } from '@rx-angular/template/let';
 import { Todo } from './todo-state';
@@ -12,7 +11,7 @@ import { TodoService } from './todo.service';
   selector: 'app-todo-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ForModule, ReactiveFormsModule, LetModule, TodoComponent],
-  providers: [TodoService, RxActionFactory],
+  providers: [TodoService],
   host: {
     class: 'todo-app',
   },
@@ -98,14 +97,12 @@ export class TodoListComponent {
       return;
     }
 
-    this.todoService.create({ text });
+    this.todoService.create(text);
     this.input.reset();
   }
 
   toggleAll(event: Event): void {
-    this.todoService.toggleAll({
-      done: (event.target as HTMLInputElement).checked,
-    });
+    this.todoService.toggleAll((event.target as HTMLInputElement).checked);
   }
 
   trackById(i, todo: Todo) {

@@ -3,15 +3,16 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
-  EventEmitter,
   Input,
   Output,
   ViewChild,
 } from '@angular/core';
-import { RxState } from '@rx-angular/state';
 import { LetModule } from '@rx-angular/template/let';
-import { asyncScheduler } from 'rxjs';
-import { filter, observeOn } from 'rxjs/operators';
+import { adapt } from '@state-adapt/angular';
+import { createAdapter, getId } from '@state-adapt/core';
+import { Source, toSource } from '@state-adapt/rxjs';
+import { asyncScheduler, BehaviorSubject, merge, using } from 'rxjs';
+import { filter, map, observeOn, tap, withLatestFrom } from 'rxjs/operators';
 
 import { Todo } from './todo-state';
 
@@ -20,7 +21,6 @@ import { Todo } from './todo-state';
   selector: 'app-todo',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [NgIf, LetModule],
-  providers: [RxState],
   template: `
     <article
       class="todo"
@@ -33,18 +33,18 @@ import { Todo } from './todo-state';
           class="toggle"
           type="checkbox"
           [checked]="vm.todo.done"
-          (input)="toggleDone()"
+          (input)="doneToggled$.next()"
         />
-        <label (dblclick)="edit()">{{ vm.todo.text }}</label>
-        <button class="destroy" (click)="destroy()"></button>
+        <label (dblclick)="store.edit()">{{ vm.todo.text }}</label>
+        <button class="destroy" (click)="destroyed$.next()"></button>
       </div>
       <input
         #input
         class="edit"
         *ngIf="vm.isEditing"
         [value]="vm.todo.text"
-        (blur)="updateText()"
-        (keyup.enter)="updateText()"
+        (blur)="textUpdate$.next()"
+        (keyup.enter)="textUpdate$.next()"
       />
     </article>
   `,
@@ -52,60 +52,66 @@ import { Todo } from './todo-state';
 export class TodoComponent {
   @ViewChild('input') input: ElementRef<HTMLInputElement>;
   @ViewChild('toggle') toggle: ElementRef<HTMLInputElement>;
+  todoInput$ = new BehaviorSubject<Todo>({} as Todo);
+  todo$ = this.todoInput$.pipe(toSource('todo$'));
 
   @Input() set todo(todo: Todo) {
-    this.state.set({ todo });
+    this.todoInput$.next(todo);
   }
 
-  get todo(): Todo {
-    return this.state.get('todo');
-  }
+  doneToggled$ = new Source<void>('doneToggled$');
+  textUpdate$ = new Source<void>('textUpdate$');
+  destroyed$ = new Source<void>('destroyed$');
 
-  @Output() remove = new EventEmitter<Pick<Todo, 'id'>>();
-  @Output() change = new EventEmitter<Todo>();
+  initialState = { isEditing: false, todo: {} as Todo };
 
-  readonly vm$ = this.state.select();
-
-  constructor(
-    private readonly state: RxState<{ isEditing: boolean; todo: Todo }>
-  ) {
-    this.state.set({ isEditing: false });
-
-    const isEditing$ = this.state
-      .select('isEditing')
-      .pipe(filter(Boolean), observeOn(asyncScheduler));
-
-    this.state.hold(isEditing$, () => {
-      this.input.nativeElement.focus();
-    });
-  }
-
-  toggleDone(): void {
-    this.state.set(({ todo }) => ({
+  adapter = createAdapter<typeof this.initialState>()({
+    setTodo: (state, todo: Todo) => ({ ...state, todo }),
+    toggleDone: (state) => ({
+      ...state,
       todo: {
-        ...todo,
+        ...state.todo,
         done: this.toggle.nativeElement.checked,
       },
-    }));
-    this.change.emit(this.todo);
-  }
-
-  edit(): void {
-    this.state.set({ isEditing: true });
-  }
-
-  destroy(): void {
-    this.remove.emit(this.todo);
-  }
-
-  updateText(): void {
-    this.state.set(({ todo }) => ({
+    }),
+    edit: (state) => ({ ...state, isEditing: true }),
+    updateText: (state) => ({
       isEditing: false,
       todo: {
-        ...todo,
+        ...state.todo,
         text: this.input.nativeElement.value,
       },
-    }));
-    this.change.emit(this.todo);
-  }
+    }),
+    selectors: {
+      isEditing: (state) => state.isEditing,
+      todo: (state) => state.todo,
+    },
+  });
+
+  store = adapt(['todo' + getId(), this.initialState, this.adapter], {
+    setTodo: this.todo$,
+    toggleDone: this.doneToggled$,
+    updateText: this.textUpdate$,
+  });
+
+  @Output() change = merge(this.doneToggled$, this.textUpdate$).pipe(
+    withLatestFrom(this.store.todo$),
+    map(([, todo]) => todo)
+  );
+  @Output() remove = this.destroyed$.pipe(
+    withLatestFrom(this.store.todo$),
+    map(([, todo]) => todo)
+  );
+
+  readonly vm$ = using(
+    () =>
+      this.store.isEditing$
+        .pipe(
+          filter(Boolean),
+          observeOn(asyncScheduler),
+          tap(() => this.input.nativeElement.focus())
+        )
+        .subscribe(),
+    () => this.store.state$
+  );
 }
